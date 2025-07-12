@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта настольного тенниса</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        .spot-form {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 300px;
+        }
+        .preview-image {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 5px;
+            object-fit: cover;
+        }
+        .image-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-0">
+        <div id="map"></div>
+        <div class="spot-form">
+            <h5>Добавить новую точку</h5>
+            <form id="spotForm">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Название</label>
+                    <input type="text" class="form-control" id="name" required>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Описание</label>
+                    <textarea class="form-control" id="description" rows="3" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="photos" class="form-label">Фотографии</label>
+                    <input type="file" class="form-control" id="photos" multiple accept="image/*">
+                    <div id="imagePreview" class="image-preview-container"></div>
+                </div>
+                <button type="submit" class="btn btn-primary">Добавить точку</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+        // Инициализация карты
+        const map = L.map('map').setView([55.7558, 37.6173], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let selectedLocation = null;
+        const markers = [];
+
+        // Обработчик клика по карте
+        map.on('click', function(e) {
+            if (selectedLocation) {
+                map.removeLayer(selectedLocation);
+            }
+            selectedLocation = L.marker(e.latlng).addTo(map);
+        });
+
+        // Предпросмотр изображений
+        document.getElementById('photos').addEventListener('change', function(e) {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = '';
+            
+            Array.from(e.target.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'preview-image';
+                    preview.appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            });
+        });
+
+        // Загрузка существующих точек
+        async function loadSpots() {
+            try {
+                const response = await fetch('/api/spots');
+                const spots = await response.json();
+                
+                spots.forEach(spot => {
+                    const marker = L.marker([spot.latitude, spot.longitude])
+                        .bindPopup(`
+                            <h6>${spot.name}</h6>
+                            <p>${spot.description}</p>
+                            ${spot.photos ? spot.photos.map(photo => 
+                                `<img src="/static/${photo.file_path}" style="max-width: 200px; margin: 5px;">`
+                            ).join('') : ''}
+                        `);
+                    markers.push(marker);
+                    marker.addTo(map);
+                });
+            } catch (error) {
+                console.error('Error loading spots:', error);
+            }
+        }
+
+        // Обработка отправки формы
+        document.getElementById('spotForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!selectedLocation) {
+                alert('Пожалуйста, выберите место на карте');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', document.getElementById('name').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('latitude', selectedLocation.getLatLng().lat);
+            formData.append('longitude', selectedLocation.getLatLng().lng);
+            formData.append('user_id', 1); // Временно, потом будем брать из Telegram WebApp
+
+            const photoFiles = document.getElementById('photos').files;
+            for (let i = 0; i < photoFiles.length; i++) {
+                formData.append('photos', photoFiles[i]);
+            }
+
+            try {
+                const response = await fetch('/api/spots', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const newSpot = await response.json();
+                    const marker = L.marker([newSpot.latitude, newSpot.longitude])
+                        .bindPopup(`
+                            <h6>${newSpot.name}</h6>
+                            <p>${newSpot.description}</p>
+                            ${newSpot.photos ? newSpot.photos.map(photo => 
+                                `<img src="/static/${photo.file_path}" style="max-width: 200px; margin: 5px;">`
+                            ).join('') : ''}
+                        `);
+                    markers.push(marker);
+                    marker.addTo(map);
+                    
+                    // Очистка формы
+                    document.getElementById('spotForm').reset();
+                    document.getElementById('imagePreview').innerHTML = '';
+                    map.removeLayer(selectedLocation);
+                    selectedLocation = null;
+                }
+            } catch (error) {
+                console.error('Error adding spot:', error);
+            }
+        });
+
+        // Загружаем точки при загрузке страницы
+        loadSpots();
+    </script>
+</body>
+</html> 
