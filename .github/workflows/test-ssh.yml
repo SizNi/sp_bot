@@ -1,0 +1,22 @@
+name: Test SSH Connection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Test SSH connection
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          echo "✅ SSH подключение успешно!"
+          echo "Сервер: $(hostname)"
+          echo "Пользователь: $(whoami)"
+          echo "Дата: $(date)"
+          echo "Docker версия: $(docker --version)"
+          echo "Docker Compose версия: $(docker-compose --version)" 
