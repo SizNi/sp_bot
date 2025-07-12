@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: SizNi/sp_bot
 
 jobs:
   test:
@@ -76,7 +76,7 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         script: |
           # Остановка старых контейнеров
-          docker-compose -f /opt/streetpong/docker-compose.prod.yml down
+          docker-compose -f /opt/streetpong/docker-compose.prod.yml down || true
           
           # Обновление образов
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.sha }}
