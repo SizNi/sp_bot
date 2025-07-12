@@ -19,4 +19,5 @@ jobs:
           echo "Пользователь: $(whoami)"
           echo "Дата: $(date)"
           echo "Docker версия: $(docker --version)"
-          echo "Docker Compose версия: $(docker-compose --version)" 
+          echo "Docker Compose версия: $(docker-compose --version)"
+          echo "Траляля" 
